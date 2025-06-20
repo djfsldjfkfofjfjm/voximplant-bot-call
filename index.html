@@ -55,10 +55,40 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     // Простой логин - метод login не возвращает промис с результатом!
     // Результат придет в событии AuthResult
-    // Формат для субюзера: subuser:parent_user@application.account.voximplant.com
-    const loginName = 'testtttt:0809@webrtc.gircychatnj.n9.voximplant.com';
-    console.log('Пробуем логин:', loginName);
-    vox.login(loginName, 'Uzolon.8585');
+    // Попробуем разные варианты
+    const loginVariants = [
+      '0809@gircychatnj.n9.voximplant.com',                    // основной юзер
+      'testtttt:0809@gircychatnj.n9.voximplant.com',          // субюзер с двоеточием
+      'testtttt@gircychatnj.n9.voximplant.com',               // субюзер напрямую
+      '0809.testtttt@gircychatnj.n9.voximplant.com',          // через точку
+      'testtttt@0809@gircychatnj.n9.voximplant.com',          // двойной @
+    ];
+    
+    let currentLoginIndex = 0;
+    
+    const tryNextLogin = () => {
+      if (currentLoginIndex < loginVariants.length) {
+        const loginName = loginVariants[currentLoginIndex];
+        console.log(`Пробуем логин ${currentLoginIndex + 1}/${loginVariants.length}:`, loginName);
+        updateStatus(`Пробуем логин: ${loginName}`);
+        currentLoginIndex++;
+        vox.login(loginName, 'Uzolon.8585');
+      } else {
+        updateStatus('Все варианты логина исчерпаны');
+      }
+    };
+    
+    // Модифицируем обработчик AuthResult для автоматической попытки следующего логина
+    const originalAuthHandler = vox._events[VoxImplant.Events.AuthResult];
+    addEvent(vox, VoxImplant.Events.AuthResult, (e) => {
+      if (!e.result && currentLoginIndex < loginVariants.length) {
+        // Пробуем следующий вариант
+        setTimeout(tryNextLogin, 500);
+      }
+    });
+    
+    // Начинаем с первого варианта
+    tryNextLogin();
   });
   
   addEvent(vox, VoxImplant.Events.ConnectionFailed, (e) => {
