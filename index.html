@@ -10,7 +10,17 @@
   <div id="status" style="margin-top: 10px; color: #666;"></div>
 
 <script>
-(async () => {
+// Ждем загрузки документа
+window.addEventListener('DOMContentLoaded', async () => {
+  // Проверяем, что VoxImplant загружен
+  if (typeof VoxImplant === 'undefined') {
+    console.error('VoxImplant SDK не загружен!');
+    document.getElementById('status').textContent = 'Ошибка: SDK не загружен';
+    return;
+  }
+  
+  console.log('VoxImplant SDK версия:', VoxImplant.version || 'неизвестна');
+  
   const vox = VoxImplant.getInstance();
   const callButton = document.getElementById('call');
   const statusDiv = document.getElementById('status');
@@ -21,12 +31,26 @@
     statusDiv.textContent = text;
   }
   
+  // Проверяем доступные методы
+  console.log('Доступные методы vox:', Object.getOwnPropertyNames(Object.getPrototypeOf(vox)));
+  
+  // Определяем метод подписки на события
+  const addEvent = (target, eventName, handler) => {
+    if (typeof target.on === 'function') {
+      target.on(eventName, handler);
+    } else if (typeof target.addEventListener === 'function') {
+      target.addEventListener(eventName, handler);
+    } else {
+      console.error('Не найден метод подписки на события для', target);
+    }
+  };
+  
   // Настройка обработчиков событий ДО инициализации
-  vox.on(VoxImplant.Events.SDKReady, () => {
+  addEvent(vox, VoxImplant.Events.SDKReady, () => {
     updateStatus('SDK готов к работе');
   });
   
-  vox.on(VoxImplant.Events.ConnectionEstablished, () => {
+  addEvent(vox, VoxImplant.Events.ConnectionEstablished, () => {
     updateStatus('Соединение установлено, выполняется авторизация...');
     
     // Логинимся ТОЛЬКО после установления соединения
@@ -40,18 +64,18 @@
       });
   });
   
-  vox.on(VoxImplant.Events.ConnectionFailed, (e) => {
+  addEvent(vox, VoxImplant.Events.ConnectionFailed, (e) => {
     updateStatus('Ошибка соединения: ' + e.message);
     console.error('Ошибка соединения:', e);
   });
   
-  vox.on(VoxImplant.Events.ConnectionClosed, () => {
+  addEvent(vox, VoxImplant.Events.ConnectionClosed, () => {
     updateStatus('Соединение закрыто');
     callButton.disabled = true;
     callButton.textContent = 'Соединение закрыто';
   });
   
-  vox.on(VoxImplant.Events.AuthResult, (e) => {
+  addEvent(vox, VoxImplant.Events.AuthResult, (e) => {
     if (e.result) {
       updateStatus('Авторизация успешна! Готов к звонкам.');
       callButton.textContent = 'Позвонить';
@@ -70,18 +94,18 @@
           updateStatus('Звоню...');
           currentCall = vox.call({video: false});
           
-          currentCall.on(VoxImplant.CallEvents.Connected, () => {
+          addEvent(currentCall, VoxImplant.CallEvents.Connected, () => {
             updateStatus('Звонок подключен');
             callButton.textContent = 'Завершить звонок';
           });
           
-          currentCall.on(VoxImplant.CallEvents.Disconnected, () => {
+          addEvent(currentCall, VoxImplant.CallEvents.Disconnected, () => {
             updateStatus('Звонок завершен');
             callButton.textContent = 'Позвонить';
             currentCall = null;
           });
           
-          currentCall.on(VoxImplant.CallEvents.Failed, (e) => {
+          addEvent(currentCall, VoxImplant.CallEvents.Failed, (e) => {
             updateStatus('Ошибка звонка: ' + e.reason);
             callButton.textContent = 'Позвонить';
             currentCall = null;
@@ -108,7 +132,7 @@
     updateStatus('Критическая ошибка: ' + error.message);
     console.error('Ошибка инициализации:', error);
   }
-})();
+});
 </script>
 </body>
 </html>
