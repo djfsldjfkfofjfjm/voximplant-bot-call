@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Позвонить голосовому боту</title>
+  <script src="https://cdn.voximplant.com/voximplant.min.js"></script>
+</head>
+<body>
+  <button id="call">Позвонить</button>
+
+<script>
+(async () => {
+  /* 1. Инициализация SDK */
+  const vox = VoxImplant.getInstance();
+  await vox.init({micRequired: true});           // запрашиваем микрофон
+  await vox.connect();                           // WebSocket к *.voximplant.com
+
+  /* 2. Логинимся Web-пользователем */
+  await vox.login('webrtc.gircychatnj.n9.voximplant.com', 'Uzolon.8585');
+
+  /* 3. Старт звонка */
+  document.getElementById('call').onclick = () => {
+    /* video:false значит только аудио */
+    vox.call({video: false});                    // попадаем в Routing rule → сценарий
+  };
+})();
+</script>
+</body>
+</html>
