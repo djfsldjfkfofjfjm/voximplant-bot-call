@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>VoxImplant Диагностика</title>
+  <script src="https://cdn.voximplant.com/voximplant.min.js"></script>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 1000px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+    .log {
+      background: #2d2d2d;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 3px;
+      border-left: 3px solid #4CAF50;
+    }
+    .error {
+      border-left-color: #f44336;
+      color: #ff6b6b;
+    }
+    .warn {
+      border-left-color: #ff9800;
+      color: #ffa726;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    button:disabled {
+      background: #555;
+    }
+    h2 {
+      color: #4CAF50;
+      margin-top: 20px;
+    }
+    input {
+      background: #2d2d2d;
+      color: white;
+      border: 1px solid #555;
+      padding: 5px 10px;
+      margin: 5px;
+      border-radius: 3px;
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <h1>VoxImplant WebRTC Диагностика</h1>
+  
+  <div>
+    <h2>Настройки подключения</h2>
+    <input id="login" placeholder="Логин" value="0809@gircychatnj.n9.voximplant.com">
+    <input id="password" type="password" placeholder="Пароль" value="Uzolon.8585">
+    <br>
+    <button id="startTest">Начать тестирование</button>
+    <button id="clearLog">Очистить лог</button>
+  </div>
+  
+  <div id="logs"></div>
+
+<script>
+const logsDiv = document.getElementById('logs');
+const startBtn = document.getElementById('startTest');
+const clearBtn = document.getElementById('clearLog');
+const loginInput = document.getElementById('login');
+const passwordInput = document.getElementById('password');
+
+let vox = null;
+
+function log(message, type = 'log') {
+  const div = document.createElement('div');
+  div.className = `log ${type}`;
+  const time = new Date().toLocaleTimeString();
+  div.textContent = `[${time}] ${message}`;
+  logsDiv.appendChild(div);
+  logsDiv.scrollTop = logsDiv.scrollHeight;
+  console.log(message);
+}
+
+clearBtn.onclick = () => {
+  logsDiv.innerHTML = '';
+};
+
+startBtn.onclick = async () => {
+  startBtn.disabled = true;
+  logsDiv.innerHTML = '';
+  
+  try {
+    // 1. Проверка SDK
+    log('=== НАЧАЛО ДИАГНОСТИКИ ===');
+    log(`VoxImplant SDK версия: ${VoxImplant.version || 'неизвестна'}`);
+    
+    // 2. Получение экземпляра
+    vox = VoxImplant.getInstance();
+    log('Экземпляр VoxImplant получен');
+    
+    // 3. Проверка поддержки WebRTC
+    if (vox.isRTCsupported && typeof vox.isRTCsupported === 'function') {
+      const rtcSupported = vox.isRTCsupported();
+      log(`WebRTC поддержка: ${rtcSupported ? 'ДА' : 'НЕТ'}`);
+    }
+    
+    // 4. Настройка всех обработчиков событий
+    log('\n=== НАСТРОЙКА ОБРАБОТЧИКОВ СОБЫТИЙ ===');
+    
+    vox.addEventListener(VoxImplant.Events.SDKReady, (e) => {
+      log('✅ Событие: SDKReady');
+    });
+    
+    vox.addEventListener(VoxImplant.Events.ConnectionEstablished, (e) => {
+      log('✅ Событие: ConnectionEstablished');
+      log('Начинаем процесс авторизации...');
+      
+      const login = loginInput.value;
+      const password = passwordInput.value;
+      
+      log(`Пробуем логин: ${login}`);
+      
+      try {
+        vox.login(login, password);
+        log('Метод login вызван успешно');
+      } catch (err) {
+        log(`❌ Ошибка при вызове login: ${err.message}`, 'error');
+      }
+    });
+    
+    vox.addEventListener(VoxImplant.Events.ConnectionFailed, (e) => {
+      log(`❌ Событие: ConnectionFailed - ${JSON.stringify(e)}`, 'error');
+    });
+    
+    vox.addEventListener(VoxImplant.Events.ConnectionClosed, (e) => {
+      log('⚠️ Событие: ConnectionClosed', 'warn');
+    });
+    
+    vox.addEventListener(VoxImplant.Events.AuthResult, (e) => {
+      log(`\n=== РЕЗУЛЬТАТ АВТОРИЗАЦИИ ===`);
+      log(`Успех: ${e.result}`);
+      log(`Код: ${e.code}`);
+      log(`Ключ: ${e.key}`);
+      log(`Полный объект: ${JSON.stringify(e)}`);
+      
+      if (e.result) {
+        log('✅ АВТОРИЗАЦИЯ УСПЕШНА!', 'log');
+        
+        // Пробуем сделать тестовый звонок
+        log('\nПробуем сделать тестовый звонок...');
+        try {
+          const call = vox.call({video: false});
+          log('✅ Метод call вызван успешно');
+          
+          call.addEventListener(VoxImplant.CallEvents.Connected, () => {
+            log('✅ Звонок подключен!');
+          });
+          
+          call.addEventListener(VoxImplant.CallEvents.Failed, (e) => {
+            log(`❌ Звонок не удался: ${e.reason} (код: ${e.code})`, 'error');
+          });
+          
+        } catch (err) {
+          log(`❌ Ошибка при вызове call: ${err.message}`, 'error');
+        }
+        
+      } else {
+        log(`❌ АВТОРИЗАЦИЯ НЕ УДАЛАСЬ`, 'error');
+        
+        // Детальный анализ ошибки
+        switch(e.code) {
+          case 401:
+            log('Причина: Неверный пароль', 'error');
+            log('Рекомендация: Проверьте пароль в панели VoxImplant', 'warn');
+            break;
+          case 404:
+            log('Причина: Пользователь не найден', 'error');
+            log('Рекомендация: Проверьте формат логина', 'warn');
+            break;
+          case 500:
+            log('Причина: Внутренняя ошибка сервера', 'error');
+            log('Возможные причины:', 'warn');
+            log('- Пользователь не активен', 'warn');
+            log('- Пользователь не привязан к приложению webrtc', 'warn');
+            log('- Нет прав на использование Web SDK', 'warn');
+            log('- Проблемы с балансом аккаунта', 'warn');
+            log('- Проблемы с настройками приложения', 'warn');
+            break;
+          default:
+            log(`Неизвестный код ошибки: ${e.code}`, 'error');
+        }
+      }
+    });
+    
+    // 5. Проверка других событий
+    vox.addEventListener(VoxImplant.Events.MicAccessGranted, () => {
+      log('🎤 Доступ к микрофону получен');
+    });
+    
+    vox.addEventListener(VoxImplant.Events.MicAccessDenied, () => {
+      log('❌ Доступ к микрофону запрещен', 'error');
+    });
+    
+    // 6. Инициализация SDK
+    log('\n=== ИНИЦИАЛИЗАЦИЯ SDK ===');
+    await vox.init({
+      micRequired: true,
+      videoSupport: false,
+      progressTone: true,
+      localVideoContainerId: null
+    });
+    log('✅ SDK инициализирован');
+    
+    // 7. Подключение
+    log('\n=== ПОДКЛЮЧЕНИЕ К VOXIMPLANT ===');
+    log('Протокол: ' + window.location.protocol);
+    
+    await vox.connect(false);
+    log('✅ Метод connect вызван');
+    
+  } catch (error) {
+    log(`❌ КРИТИЧЕСКАЯ ОШИБКА: ${error.message}`, 'error');
+    log(`Стек: ${error.stack}`, 'error');
+  } finally {
+    setTimeout(() => {
+      startBtn.disabled = false;
+    }, 3000);
+  }
+};
+
+// Глобальная обработка ошибок
+window.addEventListener('error', (e) => {
+  log(`❌ Глобальная ошибка: ${e.message}`, 'error');
+});
+
+// Перехват консольных логов VoxImplant
+const originalLog = console.log;
+console.log = function(...args) {
+  originalLog.apply(console, args);
+  const message = args.join(' ');
+  if (message.includes('VI WebRTC') || message.includes('VoxImplant')) {
+    log(`[VoxImplant] ${message}`, 'log');
+  }
+};
+</script>
+</body>
+</html>
