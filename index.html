@@ -7,70 +7,106 @@
 </head>
 <body>
   <button id="call" disabled>Инициализация...</button>
+  <div id="status" style="margin-top: 10px; color: #666;"></div>
 
 <script>
 (async () => {
-  try {
-    /* 1. Инициализация SDK */
-    const vox = VoxImplant.getInstance();
-    console.log('Инициализация SDK...');
-    await vox.init({micRequired: true});           // запрашиваем микрофон
+  const vox = VoxImplant.getInstance();
+  const callButton = document.getElementById('call');
+  const statusDiv = document.getElementById('status');
+  let currentCall = null;
+  
+  function updateStatus(text) {
+    console.log(text);
+    statusDiv.textContent = text;
+  }
+  
+  // Настройка обработчиков событий ДО инициализации
+  vox.on(VoxImplant.Events.SDKReady, () => {
+    updateStatus('SDK готов к работе');
+  });
+  
+  vox.on(VoxImplant.Events.ConnectionEstablished, () => {
+    updateStatus('Соединение установлено, выполняется авторизация...');
     
-    /* 2. Подключение к серверу */
-    console.log('Подключение к VoxImplant...');
-    await vox.connect();                           // WebSocket к *.voximplant.com
-    console.log('Подключение установлено');
-    
-    /* 3. Ждём полного установления соединения */
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    /* 4. Логинимся Web-пользователем */
-    console.log('Авторизация...');
-    try {
-      await vox.login('webrtc.gircychatnj.n9.voximplant.com', 'Uzolon.8585');
-      console.log('Авторизация успешна');
-    } catch (loginError) {
-      console.error('Ошибка авторизации:', loginError);
-      throw loginError;
+    // Логинимся ТОЛЬКО после установления соединения
+    vox.login('webrtc.gircychatnj.n9.voximplant.com', 'Uzolon.8585')
+      .then(() => {
+        updateStatus('Авторизация успешна');
+      })
+      .catch((err) => {
+        updateStatus('Ошибка авторизации: ' + err.message);
+        console.error('Ошибка логина:', err);
+      });
+  });
+  
+  vox.on(VoxImplant.Events.ConnectionFailed, (e) => {
+    updateStatus('Ошибка соединения: ' + e.message);
+    console.error('Ошибка соединения:', e);
+  });
+  
+  vox.on(VoxImplant.Events.ConnectionClosed, () => {
+    updateStatus('Соединение закрыто');
+    callButton.disabled = true;
+    callButton.textContent = 'Соединение закрыто';
+  });
+  
+  vox.on(VoxImplant.Events.AuthResult, (e) => {
+    if (e.result) {
+      updateStatus('Авторизация успешна! Готов к звонкам.');
+      callButton.textContent = 'Позвонить';
+      callButton.disabled = false;
+      
+      // Настройка обработчика звонка
+      callButton.onclick = () => {
+        if (currentCall) {
+          // Завершить текущий звонок
+          currentCall.hangup();
+          currentCall = null;
+          callButton.textContent = 'Позвонить';
+          updateStatus('Звонок завершен');
+        } else {
+          // Начать новый звонок
+          updateStatus('Звоню...');
+          currentCall = vox.call({video: false});
+          
+          currentCall.on(VoxImplant.CallEvents.Connected, () => {
+            updateStatus('Звонок подключен');
+            callButton.textContent = 'Завершить звонок';
+          });
+          
+          currentCall.on(VoxImplant.CallEvents.Disconnected, () => {
+            updateStatus('Звонок завершен');
+            callButton.textContent = 'Позвонить';
+            currentCall = null;
+          });
+          
+          currentCall.on(VoxImplant.CallEvents.Failed, (e) => {
+            updateStatus('Ошибка звонка: ' + e.reason);
+            callButton.textContent = 'Позвонить';
+            currentCall = null;
+          });
+        }
+      };
+    } else {
+      updateStatus('Ошибка авторизации: код ' + e.code);
+      console.error('AuthResult отрицательный:', e);
     }
-
-    /* 5. Старт звонка */
-    const callButton = document.getElementById('call');
-    callButton.onclick = () => {
-      console.log('Начинаем звонок...');
-      /* video:false значит только аудио */
-      const call = vox.call({video: false});     // попадаем в Routing rule → сценарий
-      
-      // Обработка событий звонка
-      call.on(VoxImplant.CallEvents.Connected, () => {
-        console.log('Звонок подключен');
-        callButton.textContent = 'Завершить звонок';
-        callButton.onclick = () => call.hangup();
-      });
-      
-      call.on(VoxImplant.CallEvents.Disconnected, () => {
-        console.log('Звонок завершен');
-        callButton.textContent = 'Позвонить';
-        callButton.onclick = () => {
-          const newCall = vox.call({video: false});
-          // Рекурсивно применяем те же обработчики
-        };
-      });
-      
-      call.on(VoxImplant.CallEvents.Failed, (e) => {
-        console.error('Ошибка звонка:', e);
-        alert('Ошибка звонка: ' + e.reason);
-      });
-    };
+  });
+  
+  try {
+    // 1. Инициализация SDK
+    updateStatus('Инициализация SDK...');
+    await vox.init({micRequired: true});
     
-    // Активируем кнопку
-    callButton.disabled = false;
-    callButton.textContent = 'Позвонить (готово)';
+    // 2. Подключение к серверу (БЕЗ await для логина)
+    updateStatus('Подключение к VoxImplant...');
+    await vox.connect();
+    // Логин будет выполнен в обработчике ConnectionEstablished
     
   } catch (error) {
-    console.error('Критическая ошибка:', error);
-    alert('Ошибка инициализации: ' + error.message);
-    document.getElementById('call').textContent = 'Ошибка инициализации';
+    updateStatus('Критическая ошибка: ' + error.message);
+    console.error('Ошибка инициализации:', error);
   }
 })();
 </script>
