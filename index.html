@@ -50,45 +50,43 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateStatus('SDK готов к работе');
   });
   
+  // Переменные для отслеживания попыток логина
+  let loginVariants = [
+    '0809@gircychatnj.n9.voximplant.com',                    // основной юзер
+    'testtttt:0809@gircychatnj.n9.voximplant.com',          // субюзер с двоеточием
+    'testtttt@gircychatnj.n9.voximplant.com',               // субюзер напрямую
+    '0809.testtttt@gircychatnj.n9.voximplant.com',          // через точку
+    'testtttt@0809@gircychatnj.n9.voximplant.com',          // двойной @
+  ];
+  let currentLoginIndex = 0;
+  let isAuthInProgress = false;
+  
   addEvent(vox, VoxImplant.Events.ConnectionEstablished, () => {
     updateStatus('Соединение установлено, выполняется авторизация...');
     
-    // Простой логин - метод login не возвращает промис с результатом!
-    // Результат придет в событии AuthResult
-    // Попробуем разные варианты
-    const loginVariants = [
-      '0809@gircychatnj.n9.voximplant.com',                    // основной юзер
-      'testtttt:0809@gircychatnj.n9.voximplant.com',          // субюзер с двоеточием
-      'testtttt@gircychatnj.n9.voximplant.com',               // субюзер напрямую
-      '0809.testtttt@gircychatnj.n9.voximplant.com',          // через точку
-      'testtttt@0809@gircychatnj.n9.voximplant.com',          // двойной @
-    ];
-    
-    let currentLoginIndex = 0;
-    
-    const tryNextLogin = () => {
-      if (currentLoginIndex < loginVariants.length) {
+    // Функция для попытки логина
+    function tryLogin() {
+      if (currentLoginIndex < loginVariants.length && !isAuthInProgress) {
+        isAuthInProgress = true;
         const loginName = loginVariants[currentLoginIndex];
         console.log(`Пробуем логин ${currentLoginIndex + 1}/${loginVariants.length}:`, loginName);
-        updateStatus(`Пробуем логин: ${loginName}`);
+        updateStatus(`Пробуем логин ${currentLoginIndex + 1}/${loginVariants.length}: ${loginName}`);
         currentLoginIndex++;
-        vox.login(loginName, 'Uzolon.8585');
-      } else {
-        updateStatus('Все варианты логина исчерпаны');
+        
+        try {
+          vox.login(loginName, 'Uzolon.8585');
+        } catch (err) {
+          console.error('Ошибка при вызове login:', err);
+          isAuthInProgress = false;
+          setTimeout(tryLogin, 500);
+        }
+      } else if (currentLoginIndex >= loginVariants.length) {
+        updateStatus('Все варианты логина исчерпаны. Проверьте настройки пользователя в VoxImplant.');
       }
-    };
-    
-    // Модифицируем обработчик AuthResult для автоматической попытки следующего логина
-    const originalAuthHandler = vox._events[VoxImplant.Events.AuthResult];
-    addEvent(vox, VoxImplant.Events.AuthResult, (e) => {
-      if (!e.result && currentLoginIndex < loginVariants.length) {
-        // Пробуем следующий вариант
-        setTimeout(tryNextLogin, 500);
-      }
-    });
+    }
     
     // Начинаем с первого варианта
-    tryNextLogin();
+    tryLogin();
   });
   
   addEvent(vox, VoxImplant.Events.ConnectionFailed, (e) => {
@@ -103,6 +101,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
   
   addEvent(vox, VoxImplant.Events.AuthResult, (e) => {
+    isAuthInProgress = false;
+    
     if (e.result) {
       updateStatus('Авторизация успешна! Готов к звонкам.');
       callButton.textContent = 'Позвонить';
@@ -140,7 +140,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
       };
     } else {
-      updateStatus('Ошибка авторизации: код ' + e.code);
       console.error('AuthResult отрицательный:', e);
       
       // Коды ошибок:
@@ -148,15 +147,45 @@ window.addEventListener('DOMContentLoaded', async () => {
       // 404 - пользователь не найден
       // 500 - внутренняя ошибка сервера
       // 701 - токен истек
+      let errorMessage = '';
       if (e.code === 404) {
-        console.log('Пользователь не найден. Проверьте формат логина.');
-        updateStatus('Ошибка: пользователь не найден');
+        errorMessage = 'Пользователь не найден';
       } else if (e.code === 401) {
-        console.log('Неверный пароль');
-        updateStatus('Ошибка: неверный пароль');
+        errorMessage = 'Неверный пароль';
       } else if (e.code === 500) {
-        console.log('Внутренняя ошибка сервера VoxImplant');
-        updateStatus('Ошибка сервера VoxImplant (500)');
+        errorMessage = 'Ошибка сервера VoxImplant';
+      } else {
+        errorMessage = `Ошибка ${e.code}`;
+      }
+      
+      console.log(`Попытка ${currentLoginIndex}/${loginVariants.length} неудачна: ${errorMessage}`);
+      
+      // Пробуем следующий вариант
+      if (currentLoginIndex < loginVariants.length) {
+        setTimeout(() => {
+          const tryLogin = () => {
+            if (currentLoginIndex < loginVariants.length && !isAuthInProgress) {
+              isAuthInProgress = true;
+              const loginName = loginVariants[currentLoginIndex];
+              console.log(`Пробуем логин ${currentLoginIndex + 1}/${loginVariants.length}:`, loginName);
+              updateStatus(`Пробуем логин ${currentLoginIndex + 1}/${loginVariants.length}: ${loginName}`);
+              currentLoginIndex++;
+              
+              try {
+                vox.login(loginName, 'Uzolon.8585');
+              } catch (err) {
+                console.error('Ошибка при вызове login:', err);
+                isAuthInProgress = false;
+                setTimeout(tryLogin, 500);
+              }
+            } else if (currentLoginIndex >= loginVariants.length) {
+              updateStatus('Все варианты логина исчерпаны. Проверьте настройки пользователя в VoxImplant.');
+            }
+          };
+          tryLogin();
+        }, 1000);
+      } else {
+        updateStatus('Все варианты логина исчерпаны. Проверьте настройки пользователя в VoxImplant.');
       }
     }
   });
