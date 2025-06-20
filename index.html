@@ -54,7 +54,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateStatus('Соединение установлено, выполняется авторизация...');
     
     // Логинимся ТОЛЬКО после установления соединения
-    vox.login('webrtc.gircychatnj.n9.voximplant.com', 'Uzolon.8585')
+    // Формат: username@appname.accountname.voximplant.com
+    vox.login('0809@gircychatnj.n9.voximplant.com', 'Uzolon.8585')
       .then(() => {
         updateStatus('Авторизация успешна');
       })
