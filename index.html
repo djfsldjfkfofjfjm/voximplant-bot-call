@@ -50,19 +50,29 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateStatus('SDK готов к работе');
   });
   
-  addEvent(vox, VoxImplant.Events.ConnectionEstablished, () => {
+  addEvent(vox, VoxImplant.Events.ConnectionEstablished, async () => {
     updateStatus('Соединение установлено, выполняется авторизация...');
     
-    // Логинимся ТОЛЬКО после установления соединения
-    // Формат: username@appname.accountname.voximplant.com
-    vox.login('0809@gircychatnj.n9.voximplant.com', 'Uzolon.8585')
-      .then(() => {
-        updateStatus('Авторизация успешна');
-      })
-      .catch((err) => {
-        updateStatus('Ошибка авторизации: ' + err.message);
-        console.error('Ошибка логина:', err);
-      });
+    // Попробуем разные варианты логина
+    const loginVariants = [
+      'testtttt@webrtc.gircychatnj.n9.voximplant.com',  // субюзер@приложение
+      'webrtc.gircychatnj.n9.voximplant.com',           // просто приложение
+      '0809@webrtc.gircychatnj.n9.voximplant.com',      // основной юзер@приложение
+      'testtttt@0809@webrtc.gircychatnj.n9.voximplant.com' // субюзер@юзер@приложение
+    ];
+    
+    for (const loginName of loginVariants) {
+      try {
+        console.log('Пробуем логин:', loginName);
+        await vox.login(loginName, 'Uzolon.8585');
+        updateStatus('Авторизация успешна с: ' + loginName);
+        console.log('Успешная авторизация с:', loginName);
+        break;
+      } catch (err) {
+        console.error('Ошибка с логином', loginName, ':', err);
+        updateStatus('Ошибка с ' + loginName + ': ' + err.message);
+      }
+    }
   });
   
   addEvent(vox, VoxImplant.Events.ConnectionFailed, (e) => {
