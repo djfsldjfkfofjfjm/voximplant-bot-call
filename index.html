@@ -50,29 +50,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     updateStatus('SDK готов к работе');
   });
   
-  addEvent(vox, VoxImplant.Events.ConnectionEstablished, async () => {
+  addEvent(vox, VoxImplant.Events.ConnectionEstablished, () => {
     updateStatus('Соединение установлено, выполняется авторизация...');
     
-    // Попробуем разные варианты логина
-    const loginVariants = [
-      'testtttt@webrtc.gircychatnj.n9.voximplant.com',  // субюзер@приложение
-      'webrtc.gircychatnj.n9.voximplant.com',           // просто приложение
-      '0809@webrtc.gircychatnj.n9.voximplant.com',      // основной юзер@приложение
-      'testtttt@0809@webrtc.gircychatnj.n9.voximplant.com' // субюзер@юзер@приложение
-    ];
-    
-    for (const loginName of loginVariants) {
-      try {
-        console.log('Пробуем логин:', loginName);
-        await vox.login(loginName, 'Uzolon.8585');
-        updateStatus('Авторизация успешна с: ' + loginName);
-        console.log('Успешная авторизация с:', loginName);
-        break;
-      } catch (err) {
-        console.error('Ошибка с логином', loginName, ':', err);
-        updateStatus('Ошибка с ' + loginName + ': ' + err.message);
-      }
-    }
+    // Простой логин - метод login не возвращает промис с результатом!
+    // Результат придет в событии AuthResult
+    // Формат для субюзера: subuser:parent_user@application.account.voximplant.com
+    const loginName = 'testtttt:0809@webrtc.gircychatnj.n9.voximplant.com';
+    console.log('Пробуем логин:', loginName);
+    vox.login(loginName, 'Uzolon.8585');
   });
   
   addEvent(vox, VoxImplant.Events.ConnectionFailed, (e) => {
@@ -126,6 +112,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     } else {
       updateStatus('Ошибка авторизации: код ' + e.code);
       console.error('AuthResult отрицательный:', e);
+      
+      // Коды ошибок:
+      // 401 - неверный пароль
+      // 404 - пользователь не найден
+      // 500 - внутренняя ошибка сервера
+      // 701 - токен истек
+      if (e.code === 404) {
+        console.log('Пользователь не найден. Проверьте формат логина.');
+        updateStatus('Ошибка: пользователь не найден');
+      } else if (e.code === 401) {
+        console.log('Неверный пароль');
+        updateStatus('Ошибка: неверный пароль');
+      } else if (e.code === 500) {
+        console.log('Внутренняя ошибка сервера VoxImplant');
+        updateStatus('Ошибка сервера VoxImplant (500)');
+      }
     }
   });
   
